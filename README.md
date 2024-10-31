@@ -1,13 +1,8 @@
 
 # Aplikasi Penghitung Umur
 
-Aplikasi ini menggunakan komponen JFrame untuk membuat antarmuka pengguna yang interaktif. Pengguna dapat memilih tanggal lahir mereka menggunakan dateChooser, dan aplikasi akan menampilkan usia dalam tahun, bulan, dan hari. Selain itu, aplikasi ini mengambil data dari API untuk menampilkan peristiwa sejarah yang berkaitan dengan tanggal ulang tahun pengguna.
+# Deskripasi
 
-Fitur utama aplikasi ini meliputi:
-
-Penghitungan Usia: Menghitung dan menampilkan usia dalam format tahun, bulan, dan hari.
-Tanggal Ulang Tahun Berikutnya: Menampilkan tanggal ulang tahun berikutnya beserta hari dalam seminggu.
-Peristiwa Sejarah: Mengambil dan menampilkan peristiwa penting yang terjadi pada tanggal yang sama di masa lalu.
 
 
 
@@ -21,6 +16,7 @@ Peristiwa Sejarah: Mengambil dan menampilkan peristiwa penting yang terjadi pada
 ## coding Java Frame
 ```java
     
+
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -36,6 +32,8 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
      * Creates new form PenghitungUmur
      */
     private PenghitungUmurHelper Helper;
+    private volatile boolean stopFetching = false;
+    private Thread peristiwaThread;
 
     /**
      * Creates new form PenghitungUmurFrame
@@ -64,6 +62,8 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
         jLabel3 = new javax.swing.JLabel();
         jTextField2 = new javax.swing.JTextField();
         jLabel4 = new javax.swing.JLabel();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        txtAreaPeristiwa = new javax.swing.JTextArea();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -154,6 +154,10 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
         jLabel4.setFont(new java.awt.Font("Tahoma", 1, 24)); // NOI18N
         jLabel4.setText("Aplikasi Penghitung Umur");
 
+        txtAreaPeristiwa.setColumns(20);
+        txtAreaPeristiwa.setRows(5);
+        jScrollPane1.setViewportView(txtAreaPeristiwa);
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -165,7 +169,10 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
                         .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(layout.createSequentialGroup()
                         .addGap(66, 66, 66)
-                        .addComponent(jLabel4)))
+                        .addComponent(jLabel4))
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(68, 68, 68)
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 428, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(183, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
@@ -175,7 +182,9 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
                 .addComponent(jLabel4)
                 .addGap(18, 18, 18)
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(230, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 204, Short.MAX_VALUE)
+                .addContainerGap())
         );
 
         pack();
@@ -186,26 +195,47 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
     }                                           
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {                                         
-        Date tanggalLahir = jDateChooser1.getDate(); // Correcting the variable name
+        Date tanggalLahir = jDateChooser1.getDate(); 
         if (tanggalLahir != null) {
-            // Menghitung umur dan hari ulang tahun berikutnya
             LocalDate lahir = tanggalLahir.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
             LocalDate sekarang = LocalDate.now();
 
-            // Menghitung umur
             String umur = Helper.PenghitungUmurHelper(lahir, sekarang);
-            jTextField1.setText(umur); // Correcting the variable name
+            jTextField1.setText(umur); 
 
-            // Menghitung tanggal ulang tahun berikutnya
             LocalDate ulangTahunBerikutnya = Helper.hariUlangTahunBerikutnya(lahir, sekarang);
             String hariUlangTahunBerikutnya = Helper.getDayOfWeekInIndonesian(ulangTahunBerikutnya);
 
-            // Format tanggal ulang tahun berikutnya
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
             String tanggalUlangTahunBerikutnya = ulangTahunBerikutnya.format(formatter);
 
-            // Menampilkan hasil pada JTextField
-            jTextField2.setText(hariUlangTahunBerikutnya + " (" + tanggalUlangTahunBerikutnya + ")"); // Correcting the variable name
+            jTextField2.setText(hariUlangTahunBerikutnya + " (" + tanggalUlangTahunBerikutnya + ")");
+
+            stopFetching = true;
+            if (peristiwaThread != null && peristiwaThread.isAlive()) {
+                peristiwaThread.interrupt();
+            }
+
+            stopFetching = false;
+
+            peristiwaThread = new Thread(() -> {
+                try {
+                    txtAreaPeristiwa.setText("Tunggu, sedang mengambil data...\n");
+                    Helper.getPeristiwaBarisPerBaris(ulangTahunBerikutnya, txtAreaPeristiwa, () -> stopFetching);
+
+                    if (!stopFetching) {
+                        javax.swing.SwingUtilities.invokeLater(() ->
+                                txtAreaPeristiwa.append("Selesai mengambil data peristiwa"));
+                    }
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        javax.swing.SwingUtilities.invokeLater(() ->
+                                txtAreaPeristiwa.setText("Pengambilan data dibatalkan.\n"));
+                    }
+                }
+            });
+
+            peristiwaThread.start();
         } else {
             jTextField1.setText("Tanggal tidak valid");
             jTextField2.setText("");
@@ -224,6 +254,12 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
     private void jDateChooser1PropertyChange(java.beans.PropertyChangeEvent evt) {                                             
         jLabel2.setText("Umur Anda");
         jLabel3.setText("Hari Ulang Tahun Berikutnya ");
+        // Hentikan thread yang sedang berjalan saat tanggal lahir berubah
+        stopFetching = true;
+        if (peristiwaThread != null && peristiwaThread.isAlive()) {
+        peristiwaThread.interrupt();
+    }
+    txtAreaPeristiwa.setText("");
     }                                            
 
     /**
@@ -270,17 +306,30 @@ public class PenghitungUmurFrame extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JPanel jPanel1;
+    private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextField jTextField1;
     private javax.swing.JTextField jTextField2;
+    private javax.swing.JTextArea txtAreaPeristiwa;
     // End of variables declaration                   
 }
+
 ```
 ## coding Helper
 ```java
-    import java.time.LocalDate;
+    
+import java.time.LocalDate;
 import java.time.Period;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.function.Supplier;
+import javax.swing.JTextArea;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class PenghitungUmurHelper {
+
     // Menghitung umur secara detail (tahun, bulan, hari)
     public String PenghitungUmurHelper(LocalDate lahir, LocalDate sekarang) {
         Period period = Period.between(lahir, sekarang);
@@ -316,10 +365,109 @@ public class PenghitungUmurHelper {
             default:
                 return "";
         }
-    }
-}
-```
 
+    }
+
+    public void getPeristiwaBarisPerBaris(LocalDate tanggal, JTextArea txtAreaPeristiwa, Supplier<Boolean> shouldStop) {
+        try {
+            // Periksa jika thread seharusnya dihentikan sebelum dimulai
+            if (shouldStop.get()) {
+                return;
+            }
+
+            String urlString = "https://byabbe.se/on-this-day/"
+                    + tanggal.getMonthValue() + "/" + tanggal.getDayOfMonth() + "/events.json";
+            URL url = new URL(urlString);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                throw new Exception("HTTP response code: " + responseCode
+                        + ". Silakan coba lagi nanti atau cek koneksi internet.");
+            }
+
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            String inputLine;
+            StringBuilder content = new StringBuilder();
+
+            while ((inputLine = in.readLine()) != null) {
+                // Periksa jika thread seharusnya dihentikan saat membaca data
+                if (shouldStop.get()) {
+                    in.close();
+                    conn.disconnect();
+                    javax.swing.SwingUtilities.invokeLater(()
+                            -> txtAreaPeristiwa.setText("Pengambilan data dibatalkan.\n"));
+                    return;
+                }
+                content.append(inputLine);
+            }
+
+            in.close();
+            conn.disconnect();
+
+            JSONObject json = new JSONObject(content.toString());
+            JSONArray events = json.getJSONArray("events");
+
+            for (int i = 0; i < events.length(); i++) {
+                // Periksa jika thread seharusnya dihentikan sebelum memproses data
+                if (shouldStop.get()) {
+                    javax.swing.SwingUtilities.invokeLater(()
+                            -> txtAreaPeristiwa.setText("Pengambilan data dibatalkan.\n"));
+                    return;
+                }
+
+                JSONObject event = events.getJSONObject(i);
+                String year = event.getString("year");
+                String description = event.getString("description");
+                String translatedDescription = translateToIndonesian(description);
+                String peristiwa = year + ": " + translatedDescription;
+
+                javax.swing.SwingUtilities.invokeLater(()
+                        -> txtAreaPeristiwa.append(peristiwa + "\n"));
+            }
+
+            if (events.length() == 0) {
+                javax.swing.SwingUtilities.invokeLater(()
+                        -> txtAreaPeristiwa.setText("Tidak ada peristiwa penting yang ditemukan pada tanggal ini."));
+            }
+
+        } catch (Exception e) {
+            javax.swing.SwingUtilities.invokeLater(()
+                    -> txtAreaPeristiwa.setText("Gagal mendapatkan data peristiwa: " + e.getMessage()));
+        }
+    }
+
+    // Menerjemahkan teks ke bahasa Indonesia
+    private String translateToIndonesian(String text) {
+        try {
+            String urlString = "https://lingva.ml/api/v1/en/id/"
+                    + text.replace(" ", "%20");
+            URL url = new URL(urlString);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                throw new Exception("HTTP response code: " + responseCode);
+            }
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+            String inputLine;
+            StringBuilder content = new StringBuilder();
+            while ((inputLine = in.readLine()) != null) {
+                content.append(inputLine);
+            }
+            in.close();
+            conn.disconnect();
+            JSONObject json = new JSONObject(content.toString());
+            return json.getString("translation");
+        } catch (Exception e) {
+            return text + " (Gagal diterjemahkan)";
+        }
+    }
+
+}
 
 ## PEMBUAT
 Muhammad Rizki Insani
