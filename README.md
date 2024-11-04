@@ -1,5 +1,5 @@
 
-# Aplikasi Penghitung Umur
+# Aplikasi Penghitung Hari
 
 # Deskripasi
 
