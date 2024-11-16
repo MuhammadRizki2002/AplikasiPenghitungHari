@@ -2,6 +2,11 @@
 # Aplikasi Penghitung Umur
 
 # Deskripasi
+Aplikasi ini bertujuan untuk menghitung umur pengguna berdasarkan tanggal lahir yang dimasukkan. Selain itu, aplikasi ini juga memberikan informasi mengenai:
+1. Menghitung Umur:
+Mengambil tanggal lahir pengguna dari JDateChooser.
+Menghitung umur secara detail dalam format:
+Tahun, bulan, dan hari.
 
 
 
